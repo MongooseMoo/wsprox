@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 )
@@ -23,13 +24,26 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	}
 	// Get the IP address of the client
 	clientIP := conn.RemoteAddr().String()
+	// Get the port of the client as a string
+
+	clientPort := strconv.Itoa(conn.RemoteAddr().(*net.TCPAddr).Port)
+	// IPv4 or IPv6
+	isIPv4 := conn.RemoteAddr().(*net.TCPAddr).IP.To4() != nil
 	// Connect to the TCP server
 	// abstract this out to use a constant
 
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", upstream+":"+upstreamPort)
 	tcpConn, _ := net.DialTCP("tcp", nil, tcpAddr)
-	// Send the client's IP address to the TCP server
-	_, err = tcpConn.Write([]byte(clientIP))
+	// Send the client's connection info to the TCP server
+	// Format: PROXY TCP4 source_addr dest_addr src_port dst_port
+	// or TCP6 if ipv6
+	if isIPv4 {
+		_, err = tcpConn.Write([]byte("PROXY TCP4 " + clientIP + " " + listenAddress + " " + clientPort + " " + upstreamPort))
+	} else {
+		_, err = tcpConn.Write([]byte("PROXY TCP6 " + clientIP + " " + listenAddress + " " + clientPort + " " + upstreamPort))
+	}
+	// _, err = tcpConn.Write([]byte(clientIP))
+
 	if err != nil {
 		fmt.Println(err)
 		return
