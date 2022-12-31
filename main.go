@@ -25,13 +25,11 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	// Get the IP address of the client
 	clientIP := conn.RemoteAddr().String()
 	// Get the port of the client as a string
-
 	clientPort := strconv.Itoa(conn.RemoteAddr().(*net.TCPAddr).Port)
 	// IPv4 or IPv6
 	isIPv4 := conn.RemoteAddr().(*net.TCPAddr).IP.To4() != nil
-	// Connect to the TCP server
-	// abstract this out to use a constant
-
+	// log the incoming connection
+	fmt.Println("Incoming connection from " + clientIP + ":" + clientPort)
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", upstream+":"+upstreamPort)
 	tcpConn, _ := net.DialTCP("tcp", nil, tcpAddr)
 	// Send the client's connection info to the TCP server
@@ -42,7 +40,6 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	} else {
 		_, err = tcpConn.Write([]byte("PROXY TCP6 " + clientIP + " " + listenAddress + " " + clientPort + " " + upstreamPort))
 	}
-	// _, err = tcpConn.Write([]byte(clientIP))
 
 	if err != nil {
 		fmt.Println(err)
@@ -88,5 +85,11 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 func main() {
 	// Start the websocket server
 	http.HandleFunc("/", IncomingWebsocketListener)
-	http.ListenAndServe(listenAddress, nil)
+	fmt.Println("Listening on " + listenAddress)
+	err := http.ListenAndServe(listenAddress, nil)
+	if err != nil {
+		fmt.Println(err)
+
+	}
+
 }
