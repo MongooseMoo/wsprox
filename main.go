@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/websocket"
 )
@@ -14,72 +14,76 @@ const upstream = "mongoose.moo.mud.org"
 const upstreamPort = "7777"
 const listenAddress = ":8080"
 
-// IncomingWebsocketListener serves websocket connections from clients
 func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
-	// Upgrade the HTTP connection to a websocket connection
 	conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
-	// Get the IP address of the client
-	clientIP := conn.RemoteAddr().String()
-	// Get the port of the client as a string
-	clientPort := strconv.Itoa(conn.RemoteAddr().(*net.TCPAddr).Port)
-	// IPv4 or IPv6
-	isIPv4 := conn.RemoteAddr().(*net.TCPAddr).IP.To4() != nil
-	// log the incoming connection
-	fmt.Println("Incoming connection from " + clientIP + ":" + clientPort)
-	tcpAddr, _ := net.ResolveTCPAddr("tcp", upstream+":"+upstreamPort)
-	tcpConn, _ := net.DialTCP("tcp", nil, tcpAddr)
-	// Send the client's connection info to the TCP server
-	// Format: PROXY TCP4 source_addr dest_addr src_port dst_port
-	// or TCP6 if ipv6
-	if isIPv4 {
-		_, err = tcpConn.Write([]byte("PROXY TCP4 " + clientIP + " " + listenAddress + " " + clientPort + " " + upstreamPort))
-	} else {
-		_, err = tcpConn.Write([]byte("PROXY TCP6 " + clientIP + " " + listenAddress + " " + clientPort + " " + upstreamPort))
+	defer conn.Close()
+
+	clientIP := conn.RemoteAddr().(*net.TCPAddr).IP
+	clientPort := conn.RemoteAddr().(*net.TCPAddr).Port
+	proxyLine := "PROXY TCP4"
+	if clientIP.To4() == nil {
+		proxyLine = "PROXY TCP6"
+	}
+	proxyLine += fmt.Sprintf(" %s %s %d %s", clientIP, listenAddress, clientPort, upstreamPort)
+
+	tcpAddr, err := net.ResolveTCPAddr("tcp", upstream+":"+upstreamPort)
+	if err != nil {
+		log.Println(err)
+		return
 	}
 
+	tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
-	// Start proxying data from the websocket connection to the TCP connection
-	// and vice versa
+	defer tcpConn.Close()
+
+	_, err = tcpConn.Write([]byte(proxyLine))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	errc := make(chan error, 2)
 	go func() {
 		for {
-			// Read data from the websocket connection
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-				fmt.Println(err)
-				break
+				errc <- err
+				return
 			}
-			// Write data to the TCP connection
 			_, err = tcpConn.Write(message)
 			if err != nil {
-				fmt.Println(err)
-				break
+				errc <- err
+				return
 			}
 		}
 	}()
 	go func() {
 		for {
-			// Read data from the TCP connection
 			data := make([]byte, 1024)
 			_, err := tcpConn.Read(data)
 			if err != nil {
-				fmt.Println(err)
-				break
+				errc <- err
+				return
 			}
-			// Write data to the websocket connection
 			err = conn.WriteMessage(websocket.TextMessage, data)
 			if err != nil {
-				fmt.Println(err)
-				break
+				errc <- err
+				return
 			}
 		}
 	}()
+
+	select {
+	case err := <-errc:
+		log.Println(err)
+	}
 }
 
 func main() {
