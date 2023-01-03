@@ -10,7 +10,7 @@ import (
 )
 
 // constants for upstream and port
-const upstream = "mongoose.moo.mud.org"
+const upstream = "localhost"
 const upstreamPort = "7777"
 const listenAddress = ":7654"
 
