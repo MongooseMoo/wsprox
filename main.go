@@ -29,20 +29,19 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	clientIP := conn.RemoteAddr().(*net.TCPAddr).IP
 	clientPort := conn.RemoteAddr().(*net.TCPAddr).Port
 
-	// Build the PROXY line to send to the upstream server
-	proxyLine := "PROXY TCP4"
-	if clientIP.To4() == nil {
-		proxyLine = "PROXY TCP6"
-	}
-	proxyLine += fmt.Sprintf(" %s %s %d %s\r\n", clientIP, listenAddress, clientPort, upstreamPort)
-	log.Printf("Sending PROXY line to upstream server: %s\n", proxyLine)
-
 	// Connect to the upstream server
 	tcpAddr, err := net.ResolveTCPAddr("tcp", upstream+":"+upstreamPort)
 	if err != nil {
 		log.Println("Error resolving upstream address:", err)
 		return
 	}
+	// Build the PROXY line to send to the upstream server
+	proxyLine := "PROXY TCP4"
+	if clientIP.To4() == nil {
+		proxyLine = "PROXY TCP6"
+	}
+	proxyLine += fmt.Sprintf(" %s %s %d %s\n", clientIP, tcpAddr.IP, clientPort, upstreamPort)
+	log.Printf("Sending PROXY line to upstream server: %s\n", proxyLine)
 
 	tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
