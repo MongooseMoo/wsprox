@@ -12,7 +12,7 @@ import (
 // constants for upstream and port
 const upstream = "mongoose.moo.mud.org"
 const upstreamPort = "7777"
-const listenAddress = ":8080"
+const listenAddress = ":7654"
 
 func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received websocket connection request")
@@ -34,7 +34,7 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	if clientIP.To4() == nil {
 		proxyLine = "PROXY TCP6"
 	}
-	proxyLine += fmt.Sprintf(" %s %s %d %s", clientIP, listenAddress, clientPort, upstreamPort)
+	proxyLine += fmt.Sprintf(" %s %s %d %s\r\n", clientIP, listenAddress, clientPort, upstreamPort)
 	log.Printf("Sending PROXY line to upstream server: %s\n", proxyLine)
 
 	// Connect to the upstream server
