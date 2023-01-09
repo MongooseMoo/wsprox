@@ -97,12 +97,12 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		for {
 			data := make([]byte, 1024)
-			_, err := tcpConn.Read(data)
+			n, err := tcpConn.Read(data)
 			if err != nil {
 				errc <- err
 				return
 			}
-			err = conn.WriteMessage(websocket.BinaryMessage, data)
+			err = conn.WriteMessage(websocket.BinaryMessage, data[:n])
 			if err != nil {
 				errc <- err
 				return
