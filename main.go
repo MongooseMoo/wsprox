@@ -5,14 +5,15 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 )
 
 // constants for upstream and port
 const upstream = "localhost"
-const upstreamPort = "7777"
-const listenAddress = ":7654"
+const upstreamPort = "7778"
+const listenAddress = "127.0.0.1:7654"
 
 func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received websocket connection request")
@@ -28,7 +29,23 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	// Get the client IP and port
 	clientIP := conn.RemoteAddr().(*net.TCPAddr).IP
 	clientPort := conn.RemoteAddr().(*net.TCPAddr).Port
+	// connection may be proxied, check headers
+	if xForwardedFor := r.Header.Get("X-Forwarded-For"); xForwardedFor != "" {
+		clientIP = net.ParseIP(xForwardedFor)
+		// client port
+		if xForwardedPort := r.Header.Get("X-Forwarded-Port"); xForwardedPort != "" {
+			clientPort, err = strconv.Atoi(xForwardedPort)
+			if err != nil {
+				log.Println("Error parsing X-Forwarded-Port:", err)
+				return
+			}
+		}
+	}
 
+	if clientIP == nil {
+		log.Println("Error getting client IP address")
+		return
+	}
 	// Connect to the upstream server
 	tcpAddr, err := net.ResolveTCPAddr("tcp", upstream+":"+upstreamPort)
 	if err != nil {
