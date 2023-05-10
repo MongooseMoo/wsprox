@@ -14,12 +14,13 @@ import (
 const upstream = "localhost"
 const upstreamPort = "7778"
 const listenAddress = "127.0.0.1:7654"
+const bufferSize = 4096
 
 func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received websocket connection request")
 
 	// Upgrade the HTTP connection to a websocket connection
-	conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+	conn, err := websocket.Upgrade(w, r, nil, bufferSize, bufferSize)
 	if err != nil {
 		log.Println("Error upgrading HTTP connection to websocket:", err)
 		return
@@ -96,7 +97,7 @@ func IncomingWebsocketListener(w http.ResponseWriter, r *http.Request) {
 	// Start a goroutine to forward data from the upstream connection to the websocket connection
 	go func() {
 		for {
-			data := make([]byte, 1024)
+			data := make([]byte, bufferSize)
 			n, err := tcpConn.Read(data)
 			if err != nil {
 				errc <- err
